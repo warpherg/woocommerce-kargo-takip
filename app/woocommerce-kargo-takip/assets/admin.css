@@ -1,0 +1,12 @@
+.wc-kargo-takip-admin input[type="checkbox"],
+#wc_kargo_teslim_edildi[type="checkbox"] {
+	transform: scale(1.15);
+	margin-right: 6px;
+}
+
+.wc-kargo-takip-admin label {
+	display: inline-flex;
+	align-items: center;
+}
+
+

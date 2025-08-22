@@ -1,0 +1,10 @@
+.wc-kargo-badge.delivered{
+	display:inline-block;
+	padding:3px 8px;
+	background:#18a957;
+	color:#fff;
+	border-radius:12px;
+	font-size:12px;
+	line-height:1;
+}
+
