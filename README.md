@@ -74,24 +74,4 @@ Liste ve linkler `includes/class-wc-kargo-takip.php` içindeki `get_supported_ca
 ## Geliştirme ve Katkı
 Eklenti sahibi: warpherg — sürüm: 1.1.0
 
-## Bu projeyi GitHub’a yükleme (hızlı talimatlar)
-1. Terminal/PowerShell ile proje köküne gidin (burada `app/woocommerce-kargo-takip` var):
-```bash
-cd C:\Users\Tayyip\Desktop\app
-git init
-git branch -M main
-git add .
-git commit -m "feat: WooCommerce kargo takip eklentisi (v1.1.0)"
-```
-2. GitHub’da boş bir repo oluşturun (ör: `warpherg/woocommerce-kargo-takip`).
-3. Uzak repo’yu ekleyip gönderin:
-```bash
-git remote add origin https://github.com/warpherg/woocommerce-kargo-takip.git
-git push -u origin main
-```
-4. Sonraki değişiklikler için:
-```bash
-git add -A
-git commit -m "mesaj"
-git push
-```
+
