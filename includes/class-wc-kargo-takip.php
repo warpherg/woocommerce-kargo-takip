@@ -60,12 +60,64 @@ if ( ! class_exists( 'WC_Kargo_Takip' ) ) {
 			add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_admin_styles' ] );
 			// Frontend styles
 			add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_front_styles' ] );
+			// Admin menu - settings page
+			add_action( 'admin_menu', [ $this, 'register_admin_menu' ] );
+			// Plugin action links
+			add_filter( 'plugin_action_links_' . plugin_basename( WC_KARGO_TAKIP_FILE ), [ $this, 'plugin_action_links' ] );
 			// Settings link under WooCommerce > Settings > Shipping
 			add_filter( 'woocommerce_get_sections_shipping', [ $this, 'add_settings_section' ] );
 			add_filter( 'woocommerce_get_settings_shipping', [ $this, 'add_settings_fields' ], 10, 2 );
 
+			// Refund handling: ensure status is synced when order is fully refunded
+			add_action( 'woocommerce_order_fully_refunded', [ $this, 'on_order_fully_refunded' ], 10, 2 );
+			add_action( 'woocommerce_order_partially_refunded', [ $this, 'on_order_partially_refunded' ], 10, 2 );
+			add_action( 'woocommerce_refund_created', [ $this, 'on_refund_created' ], 10, 1 );
+			add_action( 'woocommerce_order_status_refunded', [ $this, 'on_order_status_refunded' ], 10, 2 );
+
 			// Cron işleyici
 			add_action( 'wc_kargo_takip_cron', [ $this, 'cron_check_delivered' ] );
+		}
+
+		public function register_admin_menu() {
+			add_submenu_page(
+				'woocommerce',
+				__( 'Kargo Takip Ayarları', 'wc-kargo-takip' ),
+				__( 'Kargo Takip', 'wc-kargo-takip' ),
+				'manage_woocommerce',
+				'wc-kargo-takip-settings',
+				[ $this, 'render_settings_page' ]
+			);
+		}
+
+		public function plugin_action_links( $links ) {
+			$settings_url = admin_url( 'admin.php?page=wc-kargo-takip-settings' );
+			array_unshift( $links, '<a href="' . esc_url( $settings_url ) . '">' . esc_html__( 'Ayarlar', 'wc-kargo-takip' ) . '</a>' );
+			return $links;
+		}
+
+		public function render_settings_page() {
+			if ( ! current_user_can( 'manage_woocommerce' ) ) {
+				return;
+			}
+			// Build settings array using the same definition as WC Shipping section
+			$settings = $this->add_settings_fields( [], 'wc_kargo_takip' );
+			if ( isset( $_POST['save'] ) ) {
+				check_admin_referer( 'wc_kargo_takip_save_settings', 'wc_kargo_takip_nonce' );
+				if ( function_exists( 'woocommerce_update_options' ) ) {
+					woocommerce_update_options( $settings );
+				}
+				echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Ayarlar kaydedildi.', 'wc-kargo-takip' ) . '</p></div>';
+			}
+			echo '<div class="wrap wc-kargo-takip-admin">';
+			echo '<h1>' . esc_html__( 'Kargo Takip Ayarları', 'wc-kargo-takip' ) . '</h1>';
+			echo '<form method="post">';
+			wp_nonce_field( 'wc_kargo_takip_save_settings', 'wc_kargo_takip_nonce' );
+			if ( function_exists( 'woocommerce_admin_fields' ) ) {
+				woocommerce_admin_fields( $settings );
+			}
+			echo '<p class="submit"><button type="submit" name="save" class="button-primary">' . esc_html__( 'Kaydet', 'wc-kargo-takip' ) . '</button></p>';
+			echo '</form>';
+			echo '</div>';
 		}
 		public function cron_check_delivered() {
 			$enabled = 'yes' === get_option( 'wc_kargo_takip_cron_enabled', 'no' );
@@ -291,8 +343,9 @@ if ( ! class_exists( 'WC_Kargo_Takip' ) ) {
 			$delivered_date = $order->get_meta( self::META_DELIVERED_DATE );
 			$carriers = $this->get_supported_carriers();
 			wp_nonce_field( 'wc_kargo_takip_save', 'wc_kargo_takip_nonce' );
+			$link     = $this->build_tracking_url( $carrier, $tracking );
 			?>
-			<div class="address">
+			<div class="address wc-kargo-takip-admin">
 				<h3><?php esc_html_e( 'Kargo Takip', 'wc-kargo-takip' ); ?></h3>
 				<p class="form-field form-field-wide">
 					<label for="wc_kargo_takip_carrier"><?php esc_html_e( 'Kargo Firması', 'wc-kargo-takip' ); ?></label>
@@ -306,6 +359,13 @@ if ( ! class_exists( 'WC_Kargo_Takip' ) ) {
 				<p class="form-field form-field-wide">
 					<label for="wc_kargo_takip_number"><?php esc_html_e( 'Takip Numarası', 'wc-kargo-takip' ); ?></label>
 					<input type="text" class="short" name="wc_kargo_takip_number" id="wc_kargo_takip_number" value="<?php echo esc_attr( $tracking ); ?>" />
+					<?php if ( $tracking ) : ?>
+						<span class="description" style="margin-left:8px;">
+							<?php if ( $link ) : ?>
+								<a href="<?php echo esc_url( $link ); ?>" class="button button-small" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Takip linkini aç', 'wc-kargo-takip' ); ?></a>
+							<?php endif; ?>
+						</span>
+					<?php endif; ?>
 				</p>
 				<p class="form-field form-field-wide">
 					<label for="wc_kargo_teslim_edildi">
@@ -399,20 +459,86 @@ if ( ! class_exists( 'WC_Kargo_Takip' ) ) {
 			$carriers = $this->get_supported_carriers();
 			$link     = $this->build_tracking_url( $carrier, $tracking );
 			$carrier_label = isset( $carriers[ $carrier ] ) ? $carriers[ $carrier ] : __( 'Kargo', 'wc-kargo-takip' );
-			echo '<section class="wc-kargo-takip"><h2>' . esc_html__( 'Kargo Takibi', 'wc-kargo-takip' ) . '</h2>';
-			echo '<p>' . esc_html( $carrier_label ) . ': ';
+			echo '<section class="wc-kargo-takip wc-kargo-card">';
+			echo '<h2 class="wc-kargo-title">' . esc_html__( 'Kargo Takibi', 'wc-kargo-takip' ) . '</h2>';
+			echo '<div class="wc-kargo-row">';
+			echo '<div class="wc-kargo-info"><strong>' . esc_html( $carrier_label ) . '</strong>: ';
 			if ( $link ) {
-				echo '<a href="' . esc_url( $link ) . '" target="_blank" rel="noopener noreferrer">' . esc_html( $tracking ) . '</a>';
+				echo '<a class="wc-kargo-link" href="' . esc_url( $link ) . '" target="_blank" rel="noopener noreferrer">' . esc_html( $tracking ) . '</a>';
 			} else {
 				echo esc_html( $tracking );
 			}
 			if ( $delivered ) {
 				echo ' <span class="wc-kargo-badge delivered">' . esc_html__( 'Teslim edildi', 'wc-kargo-takip' ) . '</span>';
-				if ( $delivered_date ) {
-					echo '<br /><small>' . esc_html( $delivered_date ) . '</small>';
-				}
 			}
-			echo '</p></section>';
+			echo '</div>';
+			echo '<div class="wc-kargo-actions">';
+			echo '<button type="button" class="button wc-kargo-copy" data-copy="' . esc_attr( $tracking ) . '">' . esc_html__( 'Kopyala', 'wc-kargo-takip' ) . '</button> ';
+			if ( $link ) {
+				echo '<a class="button" href="' . esc_url( $link ) . '" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Takip sayfasını aç', 'wc-kargo-takip' ) . '</a>';
+			}
+			echo '</div>';
+			echo '</div>';
+			if ( $delivered && $delivered_date ) {
+				echo '<small class="wc-kargo-meta">' . esc_html__( 'Teslim Tarihi', 'wc-kargo-takip' ) . ': ' . esc_html( $delivered_date ) . '</small>';
+			}
+			echo '<script>(function(){document.addEventListener("click",function(e){var t=e.target;if(t&&t.classList.contains("wc-kargo-copy")){var v=t.getAttribute("data-copy");if(navigator.clipboard){navigator.clipboard.writeText(v).then(function(){t.textContent="' . esc_js( __( 'Kopyalandı', 'wc-kargo-takip' ) ) . '";setTimeout(function(){t.textContent="' . esc_js( __( 'Kopyala', 'wc-kargo-takip' ) ) . '";},1500);});}}});})();</script>';
+			echo '</section>';
+		}
+
+		/**
+		 * Refund integration: auto-set status to refunded for fully refunded orders,
+		 * and clear tracking metadata when moved to refunded.
+		 */
+		public function on_order_fully_refunded( $order_id, $refund_id = 0 ) {
+			$order = wc_get_order( $order_id );
+			if ( ! $order ) {
+				return;
+			}
+			if ( 'refunded' !== $order->get_status() ) {
+				$order->update_status( 'refunded', __( 'Ödeme iadesi sonrası durum güncellendi.', 'wc-kargo-takip' ), true );
+			}
+		}
+
+		public function on_order_partially_refunded( $order_id, $refund_id = 0 ) {
+			// If an order becomes fully refunded after a partial refund (multiple steps), update status.
+			$this->maybe_mark_refunded_if_fully( $order_id );
+		}
+
+		public function on_refund_created( $refund_id ) {
+			$refund = wc_get_order( $refund_id );
+			if ( ! $refund || ! method_exists( $refund, 'get_parent_id' ) ) {
+				return;
+			}
+			$order_id = $refund->get_parent_id();
+			$this->maybe_mark_refunded_if_fully( $order_id );
+		}
+
+		private function maybe_mark_refunded_if_fully( $order_id ) {
+			$order = wc_get_order( $order_id );
+			if ( ! $order ) {
+				return;
+			}
+			$total          = floatval( $order->get_total() );
+			$total_refunded = floatval( $order->get_total_refunded() );
+			if ( $total > 0 && $total_refunded >= $total && 'refunded' !== $order->get_status() ) {
+				$order->update_status( 'refunded', __( 'Tam iade tamamlandı, durum iade edildi olarak güncellendi.', 'wc-kargo-takip' ), true );
+			}
+		}
+
+		public function on_order_status_refunded( $order_id, $order ) {
+			if ( ! $order instanceof WC_Order ) {
+				$order = wc_get_order( $order_id );
+			}
+			if ( ! $order ) {
+				return;
+			}
+			// Clear tracking-related metadata when order is refunded
+			$order->delete_meta_data( self::META_CARRIER );
+			$order->delete_meta_data( self::META_TRACKING );
+			$order->delete_meta_data( self::META_DELIVERED );
+			$order->delete_meta_data( self::META_DELIVERED_DATE );
+			$order->save();
 		}
 
 		public function shortcode_tracking( $atts ) {

@@ -8,3 +8,35 @@
 	line-height:1;
 }
 
+
+/* Tracking card on order details */
+.wc-kargo-card{
+	border:1px solid #e2e2e2;
+	border-radius:8px;
+	padding:12px 14px;
+	margin:16px 0;
+	background:#fafafa;
+}
+.wc-kargo-card .wc-kargo-title{
+	margin:0 0 8px 0;
+	font-size:1.1em;
+}
+.wc-kargo-row{
+	display:flex;
+	align-items:center;
+	justify-content:space-between;
+	gap:10px;
+	flex-wrap:wrap;
+}
+.wc-kargo-info{
+	font-size:14px;
+}
+.wc-kargo-actions .button{
+	margin-left:6px;
+}
+.wc-kargo-meta{
+	display:block;
+	margin-top:8px;
+	color:#666;
+	font-size:12px;
+}
