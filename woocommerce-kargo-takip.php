@@ -45,6 +45,10 @@ add_action( 'plugins_loaded', function() {
 	}
 	require_once WC_KARGO_TAKIP_PATH . 'includes/class-wc-kargo-takip.php';
 	\WC_Kargo_Takip::instance();
+	// Register WP-CLI after instance
+	if ( method_exists( '\\WC_Kargo_Takip', 'register_wp_cli' ) ) {
+		\WC_Kargo_Takip::register_wp_cli();
+	}
 }, 20 );
 
 // Cron zamanlayıcıları

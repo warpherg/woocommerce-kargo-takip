@@ -40,3 +40,27 @@
 	color:#666;
 	font-size:12px;
 }
+
+/* Timeline */
+.wc-kargo-timeline{
+	margin-top:12px;
+}
+.wc-kargo-timeline-list{
+	list-style:none;
+	margin:0;
+	padding:0;
+}
+.wc-kargo-timeline-list li{
+	position:relative;
+	padding-left:12px;
+	margin:6px 0;
+}
+.wc-kargo-timeline-time{
+	color:#555;
+	display:inline-block;
+	min-width:120px;
+	font-weight:600;
+}
+.wc-kargo-timeline-desc{
+	color:#222;
+}
